@@ -415,7 +415,7 @@ class ExecutionEngine:
         self.api_key = api_key or trading_config.broker_api_key
         self.api_secret = api_secret or trading_config.broker_secret
         
-        self.logger = logger.logger
+        self.logger = logger
         self.order_log = []
         
         if not paper_trading:
@@ -587,13 +587,14 @@ class TradingSystem:
         paper_trading: bool = True
     ):
         """Initialize trading system."""
-        self.risk_manager = RiskManager(portfolio_value=portfolio_value)
+        self.portfolio_value = portfolio_value or trading_config.initial_capital
+        self.risk_manager = RiskManager(portfolio_value=self.portfolio_value)
         self.execution_engine = ExecutionEngine(paper_trading=paper_trading)
-        self.logger = logger.logger
+        self.logger = logger
         
         self.logger.info(
             f"Trading System initialized | Paper Trading: {paper_trading} | "
-            f"Portfolio Value: {portfolio_value or trading_config.initial_capital:,.0f} EGP"
+            f"Portfolio Value: {self.portfolio_value:,.0f} EGP"
         )
     
     def process_signal(

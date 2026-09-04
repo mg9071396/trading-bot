@@ -69,13 +69,13 @@ class QuantModel:
         self.feature_names = []
         self.is_fitted = False
         self.training_history = {}
-        self.logger = logger.logger
+        self.logger = logger
         
         if not XGB_AVAILABLE:
-            self.logger.error("XGBoost not installed. Install with: pip install xgboost")
+            self.logger.logger.error("XGBoost not installed. Install with: pip install xgboost")
         
         if not SKLEARN_AVAILABLE:
-            self.logger.error("scikit-learn not installed. Install with: pip install scikit-learn")
+            self.logger.logger.error("scikit-learn not installed. Install with: pip install scikit-learn")
     
     def _get_default_params(self) -> Dict:
         """Get default XGBoost parameters from config."""
@@ -124,7 +124,7 @@ class QuantModel:
         X = df_clean[feature_columns].values
         y = df_clean[target_column].values
         
-        self.logger.info(f"Prepared {len(X)} samples with {len(feature_columns)} features")
+        self.logger.logger.info(f"Prepared {len(X)} samples with {len(feature_columns)} features")
         
         return X, y, feature_columns
     
@@ -158,7 +158,7 @@ class QuantModel:
         y_train = y[:split_idx]
         y_test = y[split_idx:]
         
-        self.logger.info(
+        self.logger.logger.info(
             f"Chronological split: Train={len(X_train)} ({len(X_train)/len(X)*100:.1f}%), "
             f"Test={len(X_test)} ({len(X_test)/len(X)*100:.1f}%)"
         )
@@ -339,15 +339,26 @@ class QuantModel:
         y_pred = self.predict(X)
         y_proba = self.predict_proba(X)
         
+        # Handle multiclass case by using average parameter
+        precision = precision_score(y, y_pred, zero_division=0, average='weighted')
+        recall = recall_score(y, y_pred, zero_division=0, average='weighted')
+        f1 = f1_score(y, y_pred, zero_division=0, average='weighted')
+        
+        # ROC AUC for multiclass
+        try:
+            roc_auc = roc_auc_score(y, y_proba, multi_class='ovr', average='weighted')
+        except:
+            roc_auc = 0.5
+        
         metrics = {
             'accuracy': accuracy_score(y, y_pred),
-            'precision': precision_score(y, y_pred, zero_division=0),
-            'recall': recall_score(y, y_pred, zero_division=0),
-            'f1': f1_score(y, y_pred, zero_division=0),
-            'roc_auc': roc_auc_score(y, y_proba)
+            'precision': precision,
+            'recall': recall,
+            'f1': f1,
+            'roc_auc': roc_auc
         }
         
-        self.logger.debug(
+        self.logger.logger.debug(
             f"{dataset_name} Evaluation: "
             f"Accuracy={metrics['accuracy']:.4f}, "
             f"Prec={metrics['precision']:.4f}, "
@@ -397,7 +408,7 @@ class QuantModel:
         # Return top N
         top_features = importance_df.head(top_n)
         
-        self.logger.info(f"Top {top_n} features by {importance_type} importance retrieved")
+        self.logger.logger.info(f"Top {top_n} features by {importance_type} importance retrieved")
         
         return top_features
     
@@ -437,7 +448,7 @@ class QuantModel:
         # Convert to trading signals
         df_signals['signal'] = predictions.map({1: 'BUY', 0: 'HOLD'})
         
-        self.logger.info(f"Generated signals for {len(df_signals)} rows")
+        self.logger.logger.info(f"Generated signals for {len(df_signals)} rows")
         
         return df_signals
     
@@ -455,7 +466,7 @@ class QuantModel:
             raise ImportError("XGBoost is required")
         
         self.model.save_model(filepath)
-        self.logger.info(f"Model saved to {filepath}")
+        self.logger.logger.info(f"Model saved to {filepath}")
     
     def load_model(self, filepath: str):
         """
@@ -470,7 +481,7 @@ class QuantModel:
         self.model = xgb.Booster()
         self.model.load_model(filepath)
         self.is_fitted = True
-        self.logger.info(f"Model loaded from {filepath}")
+        self.logger.logger.info(f"Model loaded from {filepath}")
     
     def cross_validate(
         self,
@@ -515,7 +526,7 @@ class QuantModel:
             'roc_auc': []
         }
         
-        self.logger.info(f"Starting {cv_folds}-fold time-series cross-validation")
+        self.logger.logger.info(f"Starting {cv_folds}-fold time-series cross-validation")
         
         for fold, (train_idx, test_idx) in enumerate(tscv.split(X)):
             X_train, X_test = X[train_idx], X[test_idx]
@@ -538,12 +549,15 @@ class QuantModel:
             
             cv_results['fold'].append(fold + 1)
             cv_results['accuracy'].append(accuracy_score(y_test, y_pred))
-            cv_results['precision'].append(precision_score(y_test, y_pred, zero_division=0))
-            cv_results['recall'].append(recall_score(y_test, y_pred, zero_division=0))
-            cv_results['f1'].append(f1_score(y_test, y_pred, zero_division=0))
-            cv_results['roc_auc'].append(roc_auc_score(y_test, y_proba))
+            cv_results['precision'].append(precision_score(y_test, y_pred, zero_division=0, average='weighted'))
+            cv_results['recall'].append(recall_score(y_test, y_pred, zero_division=0, average='weighted'))
+            cv_results['f1'].append(f1_score(y_test, y_pred, zero_division=0, average='weighted'))
+            try:
+                cv_results['roc_auc'].append(roc_auc_score(y_test, y_proba, multi_class='ovr', average='weighted'))
+            except:
+                cv_results['roc_auc'].append(0.5)
             
-            self.logger.debug(
+            self.logger.logger.debug(
                 f"Fold {fold + 1}: Acc={cv_results['accuracy'][-1]:.4f}, "
                 f"AUC={cv_results['roc_auc'][-1]:.4f}"
             )
@@ -558,7 +572,7 @@ class QuantModel:
             for metric, values in cv_results.items() if metric != 'fold'
         }
         
-        self.logger.info(
+        self.logger.logger.info(
             f"CV Results: Accuracy={cv_summary['accuracy']['mean']:.4f}±{cv_summary['accuracy']['std']:.4f}, "
             f"AUC={cv_summary['roc_auc']['mean']:.4f}±{cv_summary['roc_auc']['std']:.4f}"
         )
