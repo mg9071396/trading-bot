@@ -63,6 +63,7 @@ class EGXTradingConfig(BaseModel):
     news_api_key: Optional[str] = Field(default_factory=lambda: os.getenv("NEWS_API_KEY"), description="Arabic News API key")
     broker_api_key: Optional[str] = Field(default_factory=lambda: os.getenv("BROKER_API_KEY"), description="Broker API key")
     broker_secret: Optional[str] = Field(default_factory=lambda: os.getenv("BROKER_SECRET"), description="Broker API secret")
+    thndr_phone: Optional[str] = Field(default_factory=lambda: os.getenv("THNDR_PHONE"), description="Thndr phone number for real-time data")
     
     @validator('commission_rate')
     def validate_commission(cls, v):
